@@ -8,8 +8,8 @@
 
     # Load Packages 
       library(dplyr)
-      library(sf)
-      library(raster)
+      #library(sf)
+      #library(raster)
       library(ape) 
       library(mosaic)
       library(tidyverse)
@@ -82,7 +82,7 @@ cut_data  %>%
     ggplot() + 
     geom_point(aes(datetime, CH4smV, col = sensor)) + 
     geom_point(data = LGR, aes(datetime, CH4_ppm*10))  +
-    scale_x_datetime(limits = c(ymd_hms("2023-05-03 12:30:00"), ymd_hms("2023-05-03 13:00:00")), date_labels = "%H:%M", date_breaks = "1 min") 
+    scale_x_datetime(limits = c(ymd_hms("2023-05-03 21:00:00"), ymd_hms("2023-05-03 21:30:00")), date_labels = "%H:%M", date_breaks = "1 min") 
 
   # 5.2 Then go through and remove those windows from the main data set  
   #     NOTE: You only need to do this for the data from the Jsensors (raw data) because then you will merge it with 
@@ -90,19 +90,25 @@ cut_data  %>%
   raw_data %>% 
     filter(!between(datetime, ymd_hms("2023-05-03 11:40:00"), ymd_hms("2023-05-03 11:42:00")),
            !between(datetime, ymd_hms("2023-05-03 11:53:00"), ymd_hms("2023-05-03 11:55:00")),
-           !between(datetime, ymd_hms("2023-05-03 12:33:00"), ymd_hms("2023-05-03 12:38:00"))) %>% 
-    mutate(datetime = round_date(datetime)) -> cut_data 
+           !between(datetime, ymd_hms("2023-05-03 12:33:00"), ymd_hms("2023-05-03 12:38:00")), 
+           !between(datetime, ymd_hms("2023-05-03 15:44:00"), ymd_hms("2023-05-03 15:51:00")),
+           !between(datetime, ymd_hms("2023-05-03 18:42:00"), ymd_hms("2023-05-03 18:52:00")),
+           !between(datetime, ymd_hms("2023-05-03 13:38:00"), ymd_hms("2023-05-03 13:42:00"))) %>% 
+            mutate(datetime = round_date(datetime)) -> cut_data 
   
   # 5.3 Plot all of the cut data together 
-ggplot() + 
-  geom_point(data = cut_data, aes(datetime, CH4smV, col = sensor)) + 
-  geom_point(data = LGR, aes(datetime, CH4_ppm*10)) 
-
+  ggplot() + 
+    geom_point(data = cut_data, aes(datetime, CH4smV, col = sensor)) + 
+    geom_point(data = LGR, aes(datetime, CH4_ppm*10)) 
+  
+# 6. Calculate absolute humidity 
 cut_data %>% 
-  select(datetime, sensor, RH = `RH%`,tempC,CH4smV,CH4rmV, SampleNumber) %>%
-  mutate(abs_H= (6.112*exp((17.67*tempC)/(tempC+243.5))*RH*18.02)/((273.15+tempC)*100*0.08314)) -> ready_data
+  dplyr::select(datetime, sensor, RH = `RH%`,tempC,CH4smV,CH4rmV, SampleNumber) %>%  # use the select function from dplyr function 
+  mutate(abs_H= (6.112*exp((17.67*tempC)/(tempC+243.5))*RH*18.02)/((273.15+tempC)*100*0.08314)) -> ready_data  # calculate absolute humidity
 
-### Calculating constant
+#******* KG got to here on 5/5/23 afternoon 
+
+#7.  Calculate constant
 
 gs<- ready_data %>% 
   group_by(sensor) %>% 
