@@ -12,7 +12,6 @@
       library(raster)
       library(ape) 
       library(mosaic)
-      library(readxl)
       library(tidyverse)
       library(devtools)
       library(lme4)
@@ -29,53 +28,72 @@
   # Set working directory 
   setwd("~/J_Sensors_CH4-CO2")
 
-# 1. Load CH4 Measurements 
-  setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230505_JSensor_Calib")
-list.files(pattern = ".csv", full.names = T) %>% 
-  tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%
-  mutate(data = lapply(path, read_csv)) %>% 
-  unnest(data) %>% 
-  mutate(datetime = ymd_hms(datetime)) %>% 
-  filter(datetime > ymd_hms("2023-05-03 00:00:00"),
-         CH4smV < 1000,
-         !sensor == "J3") %>% 
-  mutate(datetime = case_when(sensor == "J1" ~ datetime + 3283,
-                              sensor == "J4" ~ datetime - 8,
-                              T ~ datetime)) -> raw_data
+# 1. Load CH4 Measurements as "raw data" 
+  setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230503_JSensor_Calib")
+  list.files(pattern = ".csv", full.names = T) %>%  #Names of all the file in the folder that end in .csv
+    tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%   #make into tbl of path and sensor name 
+    mutate(data = lapply(path, read_csv)) %>%   # read in csv files 
+    unnest(data) %>%  # put all together in one big file 
+    mutate(datetime = ymd_hms(datetime)) %>% #format datetime 
+    filter(datetime > ymd_hms("2023-05-03 00:00:00"),  #filter any data not from the day you are interested in 
+           CH4smV < 1000,  #remove spillover (values above 1000)
+           !sensor == "J3") %>%   #Remove sensor J3 becuase it looks weird 
+    mutate(datetime = case_when(sensor == "J1" ~ datetime + 3283,  #Times are off so add and subtract to align based on CH4 peaks
+                                sensor == "J4" ~ datetime - 8,
+                                T ~ datetime)) -> raw_data  
 
+# 2. Plot the Raw data from Jsensors 
 raw_data %>% 
   ggplot(aes(datetime, CH4smV, col = sensor)) + 
   geom_point() 
   #scale_x_datetime(limits = c(ymd_hms("2023-05-03 12:30:00"), ymd_hms("2023-05-03 12:40:00")))
 
-### LGR 
-list.files(pattern = ".txt", recursive = T) %>% 
-  tibble(paths = .) %>% 
-  mutate(data = lapply(paths, read_csv, skip = 1)) %>% 
-  unnest(data) %>% 
-  select(datetime = 2, CH4_ppm = 3, H20_ppm = 7,GasT_C, AmbT_C) %>% 
-  mutate(datetime = mdy_hms(datetime),
-         datetime = round_date(datetime)-480) -> LGR
+#3. Load and format LGR Data 
 
+  #Bring in LGR data 
+  list.files(pattern = ".txt", recursive = T) %>% # Every file in the wd folder that ends in .txt
+    tibble(paths = .) %>% 
+    mutate(data = lapply(paths, read_csv, skip = 1)) %>% 
+    unnest(data) -> LGR
+  
+  # Format LGR Data 
+  LGR <- subset(LGR , select = c("Time", "[CH4]_ppm", "[H2O]_ppm", "GasT_C", "AmbT_C")) # subset to only the columns that you need 
+    names(LGR)[names(LGR) == "Time"] <- "datetime"  # Fix column names 
+    names(LGR)[names(LGR) == "[CH4]_ppm"] <- "CH4_ppm"
+    names(LGR)[names(LGR) == "[H2O]_ppm"] <- "H20_ppm"
+  
+ # Change LGR time to align with time from J sensors 
+    LGR %>% mutate(datetime = mdy_hms(datetime),
+         datetime = round_date(datetime)-480) -> LGR
+  
+# 4. Plot J sensor data and LGR data together 
 ggplot() + 
-  geom_point(data = LGR, aes(datetime, CH4_ppm*30)) + 
+  geom_point(data = LGR, aes(datetime, CH4_ppm*26)) + #mutliply the ppm from the LGR to get it on the same scale as the J sensor data 
   geom_point(data = raw_data, aes(datetime, CH4smV, col = sensor))  
   #scale_x_datetime(limits = c(ymd_hms("2023-05-03 12:30:00"), ymd_hms("2023-05-03 12:40:00"))) 
 
-#!between(datetime, ymd_hms("2022-10-26 11:07:30"),ymd_hms("2022-10-26 11:09:00")),
 
-raw_data %>% 
-  filter(!between(datetime, ymd_hms("2023-05-03 11:40:00"), ymd_hms("2023-05-03 11:42:00")),
-         !between(datetime, ymd_hms("2023-05-03 11:53:00"), ymd_hms("2023-05-03 11:55:00"))) %>% 
-  mutate(datetime = round_date(datetime)) -> cut_data 
+# 5. Go through and remove the time windows where you increased the CH4 
+#****** this is the section that will take you some time faffing 
+  #!between(datetime, ymd_hms("2022-10-26 11:07:30"),ymd_hms("2022-10-26 11:09:00")),
+
+  # 5.1 check half hour increments to find the spots where you added CH4 
+cut_data  %>% 
+    ggplot() + 
+    geom_point(aes(datetime, CH4smV, col = sensor)) + 
+    geom_point(data = LGR, aes(datetime, CH4_ppm*10))  +
+    scale_x_datetime(limits = c(ymd_hms("2023-05-03 12:30:00"), ymd_hms("2023-05-03 13:00:00")), date_labels = "%H:%M", date_breaks = "1 min") 
+
+  # 5.2 Then go through and remove those windows from the main data set  
+  #     NOTE: You only need to do this for the data from the Jsensors (raw data) because then you will merge it with 
+  #          LGR later and it will drop anything that doesn't have a match from the model 
+  raw_data %>% 
+    filter(!between(datetime, ymd_hms("2023-05-03 11:40:00"), ymd_hms("2023-05-03 11:42:00")),
+           !between(datetime, ymd_hms("2023-05-03 11:53:00"), ymd_hms("2023-05-03 11:55:00")),
+           !between(datetime, ymd_hms("2023-05-03 12:33:00"), ymd_hms("2023-05-03 12:38:00"))) %>% 
+    mutate(datetime = round_date(datetime)) -> cut_data 
   
-# check half hour increments
-cut_data %>% 
-  ggplot() + 
-  geom_point(aes(datetime, CH4smV, col = sensor)) + 
-  geom_point(data = LGR, aes(datetime, CH4_ppm*10))  +
-  scale_x_datetime(limits = c(ymd_hms("2023-05-03 12:00:00"), ymd_hms("2023-05-03 12:30:00")), date_labels = "%H:%M", date_breaks = "1 min") 
-
+  # 5.3 Plot all of the cut data together 
 ggplot() + 
   geom_point(data = cut_data, aes(datetime, CH4smV, col = sensor)) + 
   geom_point(data = LGR, aes(datetime, CH4_ppm*10)) 
