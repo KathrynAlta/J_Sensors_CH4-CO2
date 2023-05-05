@@ -1,8 +1,36 @@
-library(tidyverse);library(lubridate);library(zoo);library(readxl)
-setwd("/Users/jonas/Desktop/J sensors")
+#######################
+# 01. CALIBRATE JONAS SENSORS
+#######################
 
-### Henter CH4 målinger ####
 
+# ______________________________________________________________________________________________________________________________________________________
+# 0. Set up R Environment 
+
+    # Load Packages 
+      library(dplyr)
+      library(sf)
+      library(raster)
+      library(ape) 
+      library(mosaic)
+      library(readxl)
+      library(tidyverse)
+      library(devtools)
+      library(lme4)
+      library(car)
+      library(effects)
+      library(mosaic)
+      library(writexl)
+      library(purrr)
+      library(ggplot2)
+      library(lubridate)
+      library(zoo)
+      library(readxl)
+  
+  # Set working directory 
+  setwd("~/J_Sensors_CH4-CO2")
+
+# 1. Load CH4 Measurements 
+  setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230505_JSensor_Calibration_Data")
 list.files(pattern = ".csv", full.names = T) %>% 
   tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%
   mutate(data = lapply(path, read_csv)) %>% 
