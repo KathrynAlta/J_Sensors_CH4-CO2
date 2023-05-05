@@ -30,7 +30,7 @@
   setwd("~/J_Sensors_CH4-CO2")
 
 # 1. Load CH4 Measurements 
-  setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230505_JSensor_Calibration_Data")
+  setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230505_JSensor_Calib")
 list.files(pattern = ".csv", full.names = T) %>% 
   tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%
   mutate(data = lapply(path, read_csv)) %>% 
