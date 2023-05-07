@@ -29,6 +29,9 @@
   setwd("~/J_Sensors_CH4-CO2")
 
 # 1. Load CH4 Measurements as "raw data" 
+  # Load each day of calibration and then put together into one big file 
+  
+  # 23/05/03
   setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230503_JSensor_Calib")
   list.files(pattern = ".csv", full.names = T) %>%  #Names of all the file in the folder that end in .csv
     tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%   #make into tbl of path and sensor name 
@@ -41,6 +44,18 @@
     mutate(datetime = case_when(sensor == "J1" ~ datetime + 3283,  #Times are off so add and subtract to align based on CH4 peaks
                                 sensor == "J4" ~ datetime - 8,
                                 T ~ datetime)) -> raw_data  
+  
+  # 23/05/05
+  setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230505_JSensor_Calib")
+  list.files(pattern = ".csv", full.names = T) %>%  #Names of all the file in the folder that end in .csv
+    tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%   #make into tbl of path and sensor name 
+    mutate(data = lapply(path, read_csv)) %>%   # read in csv files 
+    unnest(data) %>%  # put all together in one big file 
+    mutate(datetime = ymd_hms(datetime)) %>% #format datetime 
+    filter(datetime > ymd_hms("2023-05-05 00:00:00"),  #filter any data not from the day you are interested in 
+           CH4smV < 1000 ) %>%  #remove spillover (values above 1000)
+    mutate(datetime = case_when(sensor == "J3" ~ datetime + 3283,  #Times are off so add and subtract to align based on CH4 peaks
+                                T ~ datetime)) -> raw_data_230505  
 
 # 2. Plot the Raw data from Jsensors 
 raw_data %>% 
