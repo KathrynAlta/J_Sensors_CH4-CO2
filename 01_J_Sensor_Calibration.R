@@ -39,23 +39,10 @@
     unnest(data) %>%  # put all together in one big file 
     mutate(datetime = ymd_hms(datetime)) %>% #format datetime 
     filter(datetime > ymd_hms("2023-05-03 00:00:00"),  #filter any data not from the day you are interested in 
-           CH4smV < 1000,  #remove spillover (values above 1000)
-           !sensor == "J3") %>%   #Remove sensor J3 becuase it looks weird 
+           CH4smV < 1000 ) %>%  #remove spillover (values above 1000)
     mutate(datetime = case_when(sensor == "J1" ~ datetime + 3283,  #Times are off so add and subtract to align based on CH4 peaks
                                 sensor == "J4" ~ datetime - 8,
                                 T ~ datetime)) -> raw_data  
-  
-  # 23/05/05
-  setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230505_JSensor_Calib")
-  list.files(pattern = ".csv", full.names = T) %>%  #Names of all the file in the folder that end in .csv
-    tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%   #make into tbl of path and sensor name 
-    mutate(data = lapply(path, read_csv)) %>%   # read in csv files 
-    unnest(data) %>%  # put all together in one big file 
-    mutate(datetime = ymd_hms(datetime)) %>% #format datetime 
-    filter(datetime > ymd_hms("2023-05-05 00:00:00"),  #filter any data not from the day you are interested in 
-           CH4smV < 1000 ) %>%  #remove spillover (values above 1000)
-    mutate(datetime = case_when(sensor == "J3" ~ datetime + 3283,  #Times are off so add and subtract to align based on CH4 peaks
-                                T ~ datetime)) -> raw_data_230505  
 
 # 2. Plot the Raw data from Jsensors 
 raw_data %>% 
@@ -99,7 +86,7 @@ cut_data  %>%
     ggplot() + 
     geom_point(aes(datetime, CH4smV, col = sensor)) + 
     geom_point(data = LGR, aes(datetime, CH4_ppm*10))  +
-    scale_x_datetime(limits = c(ymd_hms("2023-05-03 21:00:00"), ymd_hms("2023-05-03 21:30:00")), date_labels = "%H:%M", date_breaks = "1 min") 
+    scale_x_datetime(limits = c(ymd_hms("2023-05-07 16:00:00"), ymd_hms("2023-05-07 16:30:00")), date_labels = "%H:%M", date_breaks = "1 min") 
 
   # 5.2 Then go through and remove those windows from the main data set  
   #     NOTE: You only need to do this for the data from the Jsensors (raw data) because then you will merge it with 
@@ -110,6 +97,9 @@ cut_data  %>%
            !between(datetime, ymd_hms("2023-05-03 12:33:00"), ymd_hms("2023-05-03 12:38:00")), 
            !between(datetime, ymd_hms("2023-05-03 15:44:00"), ymd_hms("2023-05-03 15:51:00")),
            !between(datetime, ymd_hms("2023-05-03 18:42:00"), ymd_hms("2023-05-03 18:52:00")),
+           !between(datetime, ymd_hms("2023-05-05 12:46:00"), ymd_hms("2023-05-05 12:51:00")),
+           !between(datetime, ymd_hms("2023-05-07 13:55:00"), ymd_hms("2023-05-07 13:58:00")),
+           !between(datetime, ymd_hms("2023-05-07 16:09:00"), ymd_hms("2023-05-07 16:12:00")),
            !between(datetime, ymd_hms("2023-05-03 13:38:00"), ymd_hms("2023-05-03 13:42:00"))) %>% 
             mutate(datetime = round_date(datetime)) -> cut_data 
   
@@ -205,5 +195,9 @@ nls_model %>%
   #  bind_rows(model_coef_old)  %>%   #would bind it to the model coefficients of other sensors 
   write_csv("model_coef_230508")
 
-
+nls_model %>% 
+  select(sensor,a,b,c,K,g,S) %>% 
+  group_by(sensor) %>% 
+  summarise_if(is.numeric, mean)  %>% 
+  filter(!sensor %in% c("J4")) -> output
 
