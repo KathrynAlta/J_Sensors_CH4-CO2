@@ -32,7 +32,7 @@
   # Load each day of calibration and then put together into one big file 
   
   # 23/05/03
-  setwd("~/J_Sensors_CH4-CO2/Calibration_Data/230503_JSensor_Calib")
+  setwd("~/K Gannon/Data_Offload/JSensors/Calibration_Data/230503_JSensor_Calib")
   list.files(pattern = ".csv", full.names = T) %>%  #Names of all the file in the folder that end in .csv
     tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%   #make into tbl of path and sensor name 
     mutate(data = lapply(path, read_csv)) %>%   # read in csv files 
@@ -70,6 +70,8 @@ raw_data %>%
     tibble(paths = .) %>% 
     mutate(data = lapply(paths, read_csv, skip = 1)) %>% 
     unnest(data) -> LGR
+  
+  setwd("~/J_Sensors_CH4-CO2")
   
   # Format LGR Data 
   LGR <- subset(LGR , select = c("Time", "[CH4]_ppm", "[H2O]_ppm", "GasT_C", "AmbT_C")) # subset to only the columns that you need 
@@ -146,11 +148,19 @@ cut_data  %>%
            RsR0 = ((5000/CH4smV)-1)/((5000/V0)-1)) %>% 
     left_join(LGR, by = "datetime")
 
+# 9. Use non-linear least square estimates (NLS) to model CH4 
+  # Variables you are using: 
+  #     a, b, c, K = NLS models need a place to start so you are giving them the a, b, c, and K (from Jonas and from Bastviken paper)
+  #     RsR0 = The ratio of the resistance of the CH4 sensor and the resistance when no CH4 is present (calculated above) 
+  #     Absolute humidity = calculated from the temperature, the relative humidity, and some constants (calculated above) 
+  # So you are modeling CH4 based on the resistance in the sensor (compared to the resistance in the sensor when no 
+  #     CH4 is present ) and the humidity (the two variables that we know influence resistance and that we manipulated 
+  #     in the calibration)
 nlc <- nls.control(maxiter = 100000, warnOnly = T)
 
 nls_model <- nls_data %>% 
   group_by(sensor) %>%
-  do(nls = coef(nls(CH4_ppm ~ a*RsR0^b+c*abs_H*(a*RsR0^b) + K, data =., 
+  do(nls = coef(nls(CH4_ppm ~ a * (RsR0^b) + c*abs_H*(a*RsR0^b) + K, data =., 
                     start = c(a = 15, b = -2, c = 1, K = -15)))) %>%  # Bastviken uses (a = 15, b = -2,c = 1, K = -15)
   mutate(a = nls[][1],
          b = nls[][2],
