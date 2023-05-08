@@ -83,7 +83,7 @@ raw_data %>%
   
 # 4. Plot J sensor data and LGR data together 
 ggplot() + 
-  geom_point(data = LGR, aes(datetime, CH4_ppm*26)) + #mutliply the ppm from the LGR to get it on the same scale as the J sensor data 
+  geom_point(data = LGR, aes(datetime, CH4_ppm*24)) + #mutliply the ppm from the LGR to get it on the same scale as the J sensor data 
   geom_point(data = raw_data, aes(datetime, CH4smV, col = sensor))  
   #scale_x_datetime(limits = c(ymd_hms("2023-05-03 12:30:00"), ymd_hms("2023-05-03 12:40:00"))) 
 
@@ -116,32 +116,35 @@ cut_data  %>%
     geom_point(data = cut_data, aes(datetime, CH4smV, col = sensor)) + 
     geom_point(data = LGR, aes(datetime, CH4_ppm*10)) 
   
-# 6. Calculate absolute humidity 
-cut_data %>% 
-  dplyr::select(datetime, sensor, RH = `RH%`,tempC,CH4smV,CH4rmV, SampleNumber) %>%  # use the select function from dplyr function 
-  mutate(abs_H= (6.112*exp((17.67*tempC)/(tempC+243.5))*RH*18.02)/((273.15+tempC)*100*0.08314)) -> ready_data  # calculate absolute humidity
-
-#******* KG got to here on 5/5/23 afternoon 
+# 6. Calculate absolute humidity and create new df of ready_data 
+  cut_data %>% 
+    dplyr::select(datetime, sensor, RH = `RH%`,tempC,CH4smV,CH4rmV, SampleNumber) %>%  # use the select function from dplyr function 
+    mutate(abs_H= (6.112*exp((17.67*tempC)/(tempC+243.5))*RH*18.02)/((273.15+tempC)*100*0.08314)) -> ready_data  # calculate absolute humidity
 
 #7.  Calculate constant
+#     Constants g and s are the slope and intercept of the linear model between CH4 concentration and humidity 
 
-gs<- ready_data %>% 
-  group_by(sensor) %>% 
-  left_join(LGR) %>% 
-  drop_na(CH4_ppm) %>% 
-  filter(CH4_ppm < 5) %>% 
-  do(lm = lm (CH4smV~abs_H,data=.)) %>% 
-  mutate(S = lm$coefficients[1],
-         g = lm$coefficients[2],
-         gS = g/S)  %>% 
-  select(-lm)
+  gs<- ready_data %>%   # Feed in ready data 
+    group_by(sensor) %>%  # For each sensor (break into its own df and do the rest of these things to each)
+    left_join(LGR) %>%    # Join with the LGR data keep all rows with Jsensor data 
+    drop_na(CH4_ppm) %>%  # Get rid of any rows where there is no CH4 ppm data from 
+    filter(CH4_ppm < 5) %>%   # filter out any rows with a CH4 ppm less than 
+    do(lm = lm (CH4smV~abs_H,data=.)) %>%  #make a model 
+    mutate(S = lm$coefficients[1],  # s is the intercept of the model 
+           g = lm$coefficients[2],  # g is the slope of the model 
+           gS = g/S)  %>% 
+    select(-lm)
+  
 
-nls_data <- ready_data %>% 
-  select(sensor,datetime,RH:CH4rmV, SampleNumber,abs_H) %>% 
-  inner_join(gs, by ="sensor") %>% 
-  mutate(V0 = abs_H*g+S,
-         RsR0 = ((5000/CH4smV)-1)/((5000/V0)-1)) %>% 
-  left_join(LGR, by = "datetime")
+#8. Calculate V0 and RS/R0
+#     V0: the voltage in the CH4 sensor with different humidity levels and no CH4 
+#     RS/R0: The ratio of (the resistance from the sensor) / (the resistance at V0) 
+  nls_data <- ready_data %>% 
+    select(sensor,datetime,RH:CH4rmV, SampleNumber,abs_H) %>% 
+    inner_join(gs, by ="sensor") %>% 
+    mutate(V0 = abs_H*g+S,
+           RsR0 = ((5000/CH4smV)-1)/((5000/V0)-1)) %>% 
+    left_join(LGR, by = "datetime")
 
 nlc <- nls.control(maxiter = 100000, warnOnly = T)
 
