@@ -123,14 +123,17 @@ cut_data  %>%
     dplyr::select(datetime, sensor, RH = `RH%`,tempC,CH4smV,CH4rmV, SampleNumber) %>%  # use the select function from dplyr function 
     mutate(abs_H= (6.112*exp((17.67*tempC)/(tempC+243.5))*RH*18.02)/((273.15+tempC)*100*0.08314)) -> ready_data  # calculate absolute humidity
 
+  # Remove obs with abs_H < 12.5 
+  ready_data  <- ready_data  %>%  filter(abs_H > 15) 
+  
 #7.  Calculate constant
 #     Constants g and s are the slope and intercept of the linear model between CH4 concentration and humidity 
-
+#  background methane concentrations 
   gs<- ready_data %>%   # Feed in ready data 
     group_by(sensor) %>%  # For each sensor (break into its own df and do the rest of these things to each)
     left_join(LGR) %>%    # Join with the LGR data keep all rows with Jsensor data 
     drop_na(CH4_ppm) %>%  # Get rid of any rows where there is no CH4 ppm data from 
-    filter(CH4_ppm < 5) %>%   # filter out any rows with a CH4 ppm less than 
+    filter(CH4_ppm < 3) %>%   # filter out and only use any rows with a CH4 ppm less than  
     do(lm = lm (CH4smV~abs_H,data=.)) %>%  #make a model 
     mutate(S = lm$coefficients[1],  # s is the intercept of the model 
            g = lm$coefficients[2],  # g is the slope of the model 
@@ -149,31 +152,38 @@ cut_data  %>%
     left_join(LGR, by = "datetime")
 
 # 9. Use non-linear least square estimates (NLS) to model CH4 
-  # Variables you are using: 
+ 
+   # Variables you are using: 
   #     a, b, c, K = NLS models need a place to start so you are giving them the a, b, c, and K (from Jonas and from Bastviken paper)
   #     RsR0 = The ratio of the resistance of the CH4 sensor and the resistance when no CH4 is present (calculated above) 
   #     Absolute humidity = calculated from the temperature, the relative humidity, and some constants (calculated above) 
   # So you are modeling CH4 based on the resistance in the sensor (compared to the resistance in the sensor when no 
   #     CH4 is present ) and the humidity (the two variables that we know influence resistance and that we manipulated 
   #     in the calibration)
-nlc <- nls.control(maxiter = 100000, warnOnly = T)
 
-nls_model <- nls_data %>% 
-  group_by(sensor) %>%
-  do(nls = coef(nls(CH4_ppm ~ a * (RsR0^b) + c*abs_H*(a*RsR0^b) + K, data =., 
-                    start = c(a = 15, b = -2, c = 1, K = -15)))) %>%  # Bastviken uses (a = 15, b = -2,c = 1, K = -15)
-  mutate(a = nls[][1],
-         b = nls[][2],
-         c = nls[][3],
-         K = nls[][4]) %>% 
-  select(-nls) %>% 
-  inner_join(nls_data, by ="sensor") %>% 
-  mutate(pred_CH4 = a*(RsR0^b)+c*abs_H*(a*RsR0^b) + K)
+    nlc <- nls.control(maxiter = 100000, warnOnly = T)
 
-n_obs <- nls_model %>% 
-  group_by(sensor) %>% 
-  summarize(n = n())
+  # Build the model 
+  nls_model <- nls_data %>% 
+    group_by(sensor) %>%
+    do(nls = coef(nls(CH4_ppm ~ a * (RsR0^b) + c*abs_H*(a*RsR0^b) + K, data =., 
+                      start = c(a = 15, b = -2, c = 1, K = -15)))) %>%  # Bastviken uses (a = 15, b = -2,c = 1, K = -15)
+    mutate(a = nls[][1],
+           b = nls[][2],
+           c = nls[][3],
+           K = nls[][4]) %>% 
+    select(-nls) %>% 
+    inner_join(nls_data, by ="sensor") %>% 
+    mutate(pred_CH4 = a*(RsR0^b)+c*abs_H*(a*RsR0^b) + K)
+  # Then when you are looking at real data and you need to calibrate/convert from milivolts to ppm you use this model and the calibration coefficients that you generated here 
 
+  # number of observations for each sensor 
+    n_obs <- nls_model %>% 
+      group_by(sensor) %>% 
+      summarize(n = n())
+
+# 10. Plot the CH4 partial pressures predicted by the model and compare to the measured ppm from the LGR 
+#     (should be close to a 1 to 1 line)   col = sensor)
 nls_model %>% 
   mutate(resid = pred_CH4-CH4_ppm) %>% 
   ggplot(aes(pred_CH4, CH4_ppm, col = sensor)) + 
@@ -181,45 +191,19 @@ nls_model %>%
   geom_abline(slope = 1) +
   geom_smooth(method = "lm") + 
   facet_wrap(~sensor) 
+  # Note - There are weird lines on the bottom of these plots indicating that sometimes the model will predict a CH4
+  # partial pressure as high as 10 ppm when the actual concentration is closer to zero. But if you dig in to the data
+  # it looks like this is only happening at super low humidity and we will not be having many (if any) readings at low
+  # humidity because the chambers will be deployed above water -JS and KG conversation 5/8/23
 
-nls_model %>% 
-  mutate(resid = pred_CH4-CH4_ppm) %>% 
-  filter(between(resid, -5,5)) %>% 
-  select(sensor, datetime:abs_H,CH4_ppm, RsR0) -> nls_data_v2
-
-nls_model_v2 <- nls_data_v2 %>% 
-  group_by(sensor) %>%
-  do(nls = coef(nls(CH4_ppm ~ a*RsR0^b+c*abs_H*(a*RsR0^b) + K, data =., start = c(a = 15, b = -2, c = 1, K = -15), control = nlc))) %>%  # Bastviken bruger (a = 15, b = -2,c = 1, K = -15)
-  mutate(a = nls[][1],
-         b = nls[][2],
-         c = nls[][3],
-         K = nls[][4]) %>% 
-  select(-nls) %>% 
-  inner_join(nls_data, by ="sensor") %>% 
-  mutate(pred_CH4 = a*(RsR0^b)+c*abs_H*(a*RsR0^b) + K)
-
-nls_model_v2 %>% 
-  mutate(resid = pred_CH4-CH4_ppm) %>% 
-  ggplot(aes(pred_CH4, CH4_ppm, col = sensor)) + 
-  geom_point()+ 
-  geom_abline(slope = 1) +
-  geom_smooth(method = "lm") + 
-  facet_wrap(~sensor) 
-
-
-
+# 11. Output 
 nls_model %>% 
   select(sensor,a,b,c,K,g,S) %>% 
   group_by(sensor) %>% 
   summarise_if(is.numeric, mean)  %>% 
-  filter(!sensor %in% c("P10","P7")) %>% #### Sensor 10 og 7 er funky
-  bind_rows(model_coef_old)  %>% 
-  write_csv("NAME ME!!!!")
+   filter(!sensor %in% c("J4")) %>% #### Sensor J4 looks funky 
+  #  bind_rows(model_coef_old)  %>%   #would bind it to the model coefficients of other sensors 
+  write_csv("model_coef_230508")
 
-#nls_model_corr %>% 
-#  select(sensor,a,b,c,K,g,S) %>% 
-#  group_by(sensor) %>% 
-#  summarise_if(is.numeric, mean) %>% 
-#  bind_rows(model_coef_old) %>% 
-#  write_csv("all_sensor_model_coef.csv")
+
 
