@@ -86,18 +86,18 @@ cut_data  %>%
     ggplot() + 
     geom_point(aes(datetime, CH4smV, col = sensor)) + 
     geom_point(data = LGR, aes(datetime, CH4_ppm*10))  +
-    scale_x_datetime(limits = c(ymd_hms("2023-05-07 16:00:00"), ymd_hms("2023-05-07 16:30:00")), date_labels = "%H:%M", date_breaks = "1 min") 
+    scale_x_datetime(limits = c(ymd_hms("2023-05-05 12:30:00"), ymd_hms("2023-05-05 13:00:00")), date_labels = "%H:%M", date_breaks = "1 min") 
 
   # 5.2 Then go through and remove those windows from the main data set  
   #     NOTE: You only need to do this for the data from the Jsensors (raw data) because then you will merge it with 
   #          LGR later and it will drop anything that doesn't have a match from the model 
   raw_data %>% 
-    filter(!between(datetime, ymd_hms("2023-05-03 11:40:00"), ymd_hms("2023-05-03 11:42:00")),
+    filter(!between(datetime, ymd_hms("2023-05-03 8:00:00"), ymd_hms("2023-05-03 11:42:00")),
            !between(datetime, ymd_hms("2023-05-03 11:53:00"), ymd_hms("2023-05-03 11:55:00")),
            !between(datetime, ymd_hms("2023-05-03 12:33:00"), ymd_hms("2023-05-03 12:38:00")), 
            !between(datetime, ymd_hms("2023-05-03 15:44:00"), ymd_hms("2023-05-03 15:51:00")),
            !between(datetime, ymd_hms("2023-05-03 18:42:00"), ymd_hms("2023-05-03 18:52:00")),
-           !between(datetime, ymd_hms("2023-05-05 12:46:00"), ymd_hms("2023-05-05 12:51:00")),
+           !between(datetime, ymd_hms("2023-05-05 8:00:00"), ymd_hms("2023-05-05 12:51:00")),
            !between(datetime, ymd_hms("2023-05-07 13:55:00"), ymd_hms("2023-05-07 13:58:00")),
            !between(datetime, ymd_hms("2023-05-07 16:09:00"), ymd_hms("2023-05-07 16:12:00")),
            !between(datetime, ymd_hms("2023-05-03 13:38:00"), ymd_hms("2023-05-03 13:42:00"))) %>% 
@@ -165,7 +165,8 @@ cut_data  %>%
     select(-nls) %>% 
     inner_join(nls_data, by ="sensor") %>% 
     mutate(pred_CH4 = a*(RsR0^b)+c*abs_H*(a*RsR0^b) + K)
-  # Then when you are looking at real data and you need to calibrate/convert from milivolts to ppm you use this model and the calibration coefficients that you generated here 
+  # Then when you are looking at real data and you need to calibrate/convert from milivolts to ppm you use this 
+  #    model and the calibration coefficients that you generated here 
 
   # number of observations for each sensor 
     n_obs <- nls_model %>% 
@@ -175,6 +176,7 @@ cut_data  %>%
 # 10. Plot the CH4 partial pressures predicted by the model and compare to the measured ppm from the LGR 
 #     (should be close to a 1 to 1 line)   col = sensor)
 nls_model %>% 
+  filter(!sensor %in% c("J4")) %>% #
   mutate(resid = pred_CH4-CH4_ppm) %>% 
   ggplot(aes(pred_CH4, CH4_ppm, col = sensor)) + 
   geom_point()+ 
@@ -193,7 +195,7 @@ nls_model %>%
   summarise_if(is.numeric, mean)  %>% 
    filter(!sensor %in% c("J4")) %>% #### Sensor J4 looks funky 
   #  bind_rows(model_coef_old)  %>%   #would bind it to the model coefficients of other sensors 
-  write_csv("model_coef_230508")
+  write_csv("model_coef_230511")
 
 nls_model %>% 
   select(sensor,a,b,c,K,g,S) %>% 
