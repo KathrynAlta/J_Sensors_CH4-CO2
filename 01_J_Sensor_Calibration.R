@@ -44,6 +44,9 @@
                                 sensor == "J4" ~ datetime - 8,
                                 T ~ datetime)) -> raw_data  
 
+  
+  
+  
 # 2. Plot the Raw data from Jsensors 
 raw_data %>% 
   ggplot(aes(datetime, CH4smV, col = sensor)) + 
