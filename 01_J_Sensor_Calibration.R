@@ -202,4 +202,5 @@ nls_model %>%
   group_by(sensor) %>% 
   summarise_if(is.numeric, mean)  %>% 
   filter(!sensor %in% c("J4")) -> output
+ # Katie check 
 
