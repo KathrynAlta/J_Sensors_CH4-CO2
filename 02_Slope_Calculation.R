@@ -35,8 +35,8 @@
       # Read in all data into one big file 
       setwd("~/K Gannon/Data_Offload/JSensors/DEC_Ponds_INT_R2") # These files are too big to save on Git so save on your machine and pull them off 
       list.files(pattern = ".csv", full.names = T, recursive = TRUE) %>%  #Names of all the file in the folder that end in .csv
-        tibble(path = .) %>%   #make into tbl of path and sensor name 
-        mutate(data = lapply(path, read_csv)) %>% 
+        tibble(path = ., sensor = c("Katie is awesome")) %>%   #make into tbl of path and sensor name 
+        mutate(data = lapply(path, read_csv)) %>%  
         unnest(data) -> raw_data
       
       raw_data$ID <- substring(raw_data$path, 3, nchar(raw_data$path)-4)  # Make an ID column based on path and file name
