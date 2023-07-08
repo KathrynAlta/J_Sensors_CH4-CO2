@@ -56,37 +56,39 @@ raw_data %>%
 #3. Load and format LGR Data 
 
   #Bring in LGR data 
+  setwd("~/K Gannon/Data_Offload/JSensors/Calibration_Data/230708_JSensor_Calib")
   list.files(pattern = ".txt", recursive = T) %>% # Every file in the wd folder that ends in .txt
     tibble(paths = .) %>% 
     mutate(data = lapply(paths, read_csv, skip = 1)) %>% 
-    unnest(data) -> LGR
+    unnest(data) -> LGR_raw
   
   setwd("~/J_Sensors_CH4-CO2")
   
   # Format LGR Data 
-  LGR <- subset(LGR , select = c("Time", "[CH4]_ppm", "[H2O]_ppm", "GasT_C", "AmbT_C")) # subset to only the columns that you need 
-    names(LGR)[names(LGR) == "Time"] <- "datetime"  # Fix column names 
-    names(LGR)[names(LGR) == "[CH4]_ppm"] <- "CH4_ppm"
-    names(LGR)[names(LGR) == "[H2O]_ppm"] <- "H20_ppm"
+  LGR_raw <- subset(LGR_raw , select = c("Time", "[CH4]_ppm", "[H2O]_ppm", "GasT_C", "AmbT_C")) # subset to only the columns that you need 
+    names(LGR_raw)[names(LGR_raw) == "Time"] <- "datetime"  # Fix column names 
+    names(LGR_raw)[names(LGR_raw) == "[CH4]_ppm"] <- "CH4_ppm"
+    names(LGR_raw)[names(LGR_raw) == "[H2O]_ppm"] <- "H20_ppm"
   
  # Change LGR time to align with time from J sensors 
     #Original code 
-    LGR %>% mutate(datetime = mdy_hms(datetime),
-                   datetime = round_date(datetime)-480) -> LGR
+    LGR_raw %>% mutate(datetime = mdy_hms(datetime),
+                   datetime = round_date(datetime)-480) -> LGR_og  #This comes out as still a dataframe with dates ymd
     
-    #break into early calib and only mutate that chunk by 480 
-    LGR %>% filter(between(datetime, ymd_hms("2023-05-02 8:00:00"), ymd_hms("2023-06-25 11:42:00"))) %>%
-      mutate(datetime = mdy_hms(datetime),
-             datetime = round_date(datetime)-480) -> LGR_timecalib1
+    #break into early calib and mutate only that chunk by 480 
+    LGR_raw %>% mutate(datetime = mdy_hms(datetime)) %>% 
+      filter(between(datetime, ymd_hms("2023-05-02 8:00:00"), ymd_hms("2023-06-25 8:00:00"))) %>%
+      mutate(datetime = round_date(datetime)-480) -> LGR_timecalib1
     
-    # Late calibration and mutate by 390
-    LGR %>% filter(between(datetime, ymd_hms("2023-06-26 8:00:00"), ymd_hms("2023-06-29 15:00:00"))) %>%
-      mutate(datetime = mdy_hms(datetime),
-             datetime = round_date(datetime)-90) -> LGR_timecalib2
+    #break into late calib and mutate only that chunk by 480 
+    LGR_raw %>% mutate(datetime = mdy_hms(datetime)) %>% 
+      filter(between(datetime, ymd_hms("2023-06-26 8:00:00"), ymd_hms("2023-06-29 8:00:00"))) %>%
+      mutate(datetime = round_date(datetime) - 150) -> LGR_timecalib2
     
     #put the two back together 
     LGR <- rbind(LGR_timecalib1, LGR_timecalib2)
-  
+      
+      
 # 4. Plot J sensor data and LGR data together 
 ggplot() + 
   geom_point(data = LGR, aes(datetime, CH4_ppm*24)) + #mutliply the ppm from the LGR to get it on the same scale as the J sensor data 
@@ -103,7 +105,7 @@ raw_data  %>%
     ggplot() + 
     geom_point(aes(datetime, CH4smV, col = sensor)) + 
     geom_point(data = LGR, aes(datetime, CH4_ppm*10))  +
-    scale_x_datetime(limits = c(ymd_hms("2023-06-26 10:05:00"), ymd_hms("2023-06-26 10:25:00")), date_labels = "%H:%M", date_breaks = "1 min") 
+    scale_x_datetime(limits = c(ymd_hms("2023-06-26 10:10:00"), ymd_hms("2023-06-26 10:30:00")), date_labels = "%H:%M", date_breaks = "1 min") 
 
   # 5.2 Then go through and remove those windows from the main data set  
   #     NOTE: You only need to do this for the data from the Jsensors (raw data) because then you will merge it with 
