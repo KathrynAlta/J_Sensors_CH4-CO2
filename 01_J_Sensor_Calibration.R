@@ -72,7 +72,20 @@ raw_data %>%
  # Change LGR time to align with time from J sensors 
     #Original code 
     LGR %>% mutate(datetime = mdy_hms(datetime),
-         datetime = round_date(datetime)-480) -> LGR
+                   datetime = round_date(datetime)-480) -> LGR
+    
+    #break into early calib and only mutate that chunk by 480 
+    LGR %>% filter(between(datetime, ymd_hms("2023-05-02 8:00:00"), ymd_hms("2023-06-25 11:42:00"))) %>%
+      mutate(datetime = mdy_hms(datetime),
+             datetime = round_date(datetime)-480) -> LGR_timecalib1
+    
+    # Late calibration and mutate by 390
+    LGR %>% filter(between(datetime, ymd_hms("2023-06-26 8:00:00"), ymd_hms("2023-06-29 15:00:00"))) %>%
+      mutate(datetime = mdy_hms(datetime),
+             datetime = round_date(datetime)-90) -> LGR_timecalib2
+    
+    #put the two back together 
+    LGR <- rbind(LGR_timecalib1, LGR_timecalib2)
   
 # 4. Plot J sensor data and LGR data together 
 ggplot() + 
