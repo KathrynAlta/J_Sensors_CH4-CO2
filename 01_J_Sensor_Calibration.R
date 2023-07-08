@@ -32,7 +32,7 @@
   # Load each day of calibration and then put together into one big file 
   
   # 23/05/03
-  setwd("~/K Gannon/Data_Offload/JSensors/Calibration_Data/230503_JSensor_Calib")
+  setwd("~/K Gannon/Data_Offload/JSensors/Calibration_Data/230708_JSensor_Calib")
   list.files(pattern = ".csv", full.names = T) %>%  #Names of all the file in the folder that end in .csv
     tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%   #make into tbl of path and sensor name 
     mutate(data = lapply(path, read_csv)) %>%   # read in csv files 
@@ -70,6 +70,7 @@ raw_data %>%
     names(LGR)[names(LGR) == "[H2O]_ppm"] <- "H20_ppm"
   
  # Change LGR time to align with time from J sensors 
+    #Original code 
     LGR %>% mutate(datetime = mdy_hms(datetime),
          datetime = round_date(datetime)-480) -> LGR
   
@@ -85,11 +86,11 @@ ggplot() +
   #!between(datetime, ymd_hms("2022-10-26 11:07:30"),ymd_hms("2022-10-26 11:09:00")),
 
   # 5.1 check half hour increments to find the spots where you added CH4 
-cut_data  %>% 
+raw_data  %>% 
     ggplot() + 
     geom_point(aes(datetime, CH4smV, col = sensor)) + 
     geom_point(data = LGR, aes(datetime, CH4_ppm*10))  +
-    scale_x_datetime(limits = c(ymd_hms("2023-05-05 12:30:00"), ymd_hms("2023-05-05 13:00:00")), date_labels = "%H:%M", date_breaks = "1 min") 
+    scale_x_datetime(limits = c(ymd_hms("2023-06-26 10:05:00"), ymd_hms("2023-06-26 10:25:00")), date_labels = "%H:%M", date_breaks = "1 min") 
 
   # 5.2 Then go through and remove those windows from the main data set  
   #     NOTE: You only need to do this for the data from the Jsensors (raw data) because then you will merge it with 
@@ -179,7 +180,7 @@ cut_data  %>%
 # 10. Plot the CH4 partial pressures predicted by the model and compare to the measured ppm from the LGR 
 #     (should be close to a 1 to 1 line)   col = sensor)
 nls_model %>% 
-  filter(!sensor %in% c("J4")) %>% #
+  #filter(!sensor %in% c("J4")) %>% #
   mutate(resid = pred_CH4-CH4_ppm) %>% 
   ggplot(aes(pred_CH4, CH4_ppm, col = sensor)) + 
   geom_point()+ 
