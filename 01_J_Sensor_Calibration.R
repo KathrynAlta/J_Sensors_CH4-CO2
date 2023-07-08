@@ -2,7 +2,6 @@
 # 01. CALIBRATE JONAS SENSORS
 #######################
 
-
 # ______________________________________________________________________________________________________________________________________________________
 # 0. Set up R Environment 
 
@@ -101,11 +100,11 @@ ggplot() +
   #!between(datetime, ymd_hms("2022-10-26 11:07:30"),ymd_hms("2022-10-26 11:09:00")),
 
   # 5.1 check half hour increments to find the spots where you added CH4 
-raw_data  %>% 
+cut_data  %>% 
     ggplot() + 
     geom_point(aes(datetime, CH4smV, col = sensor)) + 
     geom_point(data = LGR, aes(datetime, CH4_ppm*10))  +
-    scale_x_datetime(limits = c(ymd_hms("2023-06-26 10:10:00"), ymd_hms("2023-06-26 10:30:00")), date_labels = "%H:%M", date_breaks = "1 min") 
+    scale_x_datetime(limits = c(ymd_hms("2023-06-27 17:00:00"), ymd_hms("2023-06-27 22:00:00")), date_labels = "%H:%M", date_breaks = "1 min") 
 
   # 5.2 Then go through and remove those windows from the main data set  
   #     NOTE: You only need to do this for the data from the Jsensors (raw data) because then you will merge it with 
@@ -119,6 +118,9 @@ raw_data  %>%
            !between(datetime, ymd_hms("2023-05-05 8:00:00"), ymd_hms("2023-05-05 12:51:00")),
            !between(datetime, ymd_hms("2023-05-07 13:55:00"), ymd_hms("2023-05-07 13:58:00")),
            !between(datetime, ymd_hms("2023-05-07 16:09:00"), ymd_hms("2023-05-07 16:12:00")),
+           !between(datetime, ymd_hms("2023-06-26 10:15:00"), ymd_hms("2023-06-26 10:17:00")),
+           !between(datetime, ymd_hms("2023-06-26 14:05:00"), ymd_hms("2023-06-26 14:08:00")),
+           !between(datetime, ymd_hms("2023-06-26 17:08:00"), ymd_hms("2023-06-26 17:10:00")),
            !between(datetime, ymd_hms("2023-05-03 13:38:00"), ymd_hms("2023-05-03 13:42:00"))) %>% 
             mutate(datetime = round_date(datetime)) -> cut_data 
   
