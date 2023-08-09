@@ -30,8 +30,13 @@
 # 1. Load CH4 Measurements as "raw data" 
   # Load each day of calibration and then put together into one big file 
   
-  # 23/05/03
-  setwd("~/K Gannon/Data_Offload/JSensors/Calibration_Data/230708_JSensor_Calib")
+  # August 9, 2023 Comparison 
+  
+  list.files(pattern = ".csv", full.names = T) %>%  #Names of all the file in the folder that end in .csv
+    tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%   #make into tbl of path and sensor name 
+    mutate(data = lapply(path, read_csv))%>%  unnest(data) %>% mutate(datetime = ymd_hms(datetime)) -> raw 
+  
+  setwd("~/J_Sensors_CH4-CO2/Input_Files/Comparison_9Agust2023")
   list.files(pattern = ".csv", full.names = T) %>%  #Names of all the file in the folder that end in .csv
     tibble(path = ., sensor = c("J1","J2","J3","J4")) %>%   #make into tbl of path and sensor name 
     mutate(data = lapply(path, read_csv)) %>%   # read in csv files 
